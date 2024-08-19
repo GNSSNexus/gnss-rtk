@@ -297,7 +297,6 @@ impl<O: OrbitSource> Solver<O> {
             cfg: cfg.clone(),
             prev_solution: None,
             postfit_kf: None,
-            // TODO
             ambiguity: AmbiguitySolver::new(Duration::from_seconds(120.0)),
             sv_orbits: HashMap::new(),
             nav: Navigation::new(cfg.solver.filter),
@@ -631,19 +630,13 @@ impl<O: OrbitSource> Solver<O> {
          * Post-fit KF
          */
         if self.cfg.solver.postfit_kf {
-            //if let Some(kf) = &mut self.postfit_kf {
-            //} else {
-            //    let kf_estim = KfEstimate::from_diag(
-            //        State3D {
-            //            t: Epoch::from_gpst_seconds(x[3] / SPEED_OF_LIGHT_KM_S),
-            //            inner: Vector3::new(x[0], x[1], x[2]),
-            //        },
-            //        OVector::<f64, U3>::new(1.0, 1.0, 1.0),
-            //    );
-            //    let noise =
-            //        OMatrix::<f64, U3, U3>::new(1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
-            //    self.postfit_kf = Some(KF::no_snc(kf_estim, noise));
-            //}
+            if let Some(kf) = &mut self.postfit_kf {
+                //kf.update_h_tilde();
+                //kf.time_update();
+                //kf.measurement_update();
+            } else {
+                self.postfit_kf = Some(PostFitKF::new(t, x0 / 1.0E3, y0 / 1.0E3, z0 / 1.0E3));
+            }
         }
 
         // update & store for next time
