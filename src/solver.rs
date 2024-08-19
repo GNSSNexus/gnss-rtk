@@ -31,6 +31,7 @@ use crate::{
         Input as NavigationInput, Navigation, PVTSolution, PVTSolutionType,
     },
     orbit::OrbitSource,
+    postfit_kf::PostFitKF,
     prelude::{Duration, Epoch, Orbit, SV},
 };
 
@@ -158,9 +159,8 @@ pub struct Solver<O: OrbitSource> {
     nav: Navigation,
     /// [AmbiguitySolver]
     ambiguity: AmbiguitySolver,
-    // Post fit KF
-    // postfit_kf: Option<KF<State3D, U3, U3>>,
-    /* prev. solution for internal logic */
+    /// Post fit [KF]
+    postfit_kf: Option<PostFitKF>,
     /// Previous solution (internal logic)
     prev_solution: Option<(Epoch, PVTSolution)>,
     /// Stored previous SV state (internal logic)
@@ -296,9 +296,9 @@ impl<O: OrbitSource> Solver<O> {
             initial,
             cfg: cfg.clone(),
             prev_solution: None,
+            postfit_kf: None,
             // TODO
             ambiguity: AmbiguitySolver::new(Duration::from_seconds(120.0)),
-            // postfit_kf: None,
             sv_orbits: HashMap::new(),
             nav: Navigation::new(cfg.solver.filter),
         }
@@ -427,21 +427,15 @@ impl<O: OrbitSource> Solver<O> {
         }
 
         // (local) rx state
-        let rx_orbit = if let Some((_, prev_sol)) = &self.prev_solution {
-            // prev_sol.state
-            // TODO: this will not work for roaming rovers
-            self.initial.unwrap() // infaillible at this point
-        } else {
-            self.initial.unwrap() // infaillible at this point
-        };
+        let rx_orbit = self.initial.unwrap(); //infaillible at this point
+        let rx_pos_vel = rx_orbit.to_cartesian_pos_vel() * 1.0E3;
+        let (x0, y0, z0) = (rx_pos_vel[0], rx_pos_vel[1], rx_pos_vel[2]);
 
         let (rx_lat_deg, rx_long_deg, rx_alt_km) =
             rx_orbit.latlongalt().map_err(|e| Error::Physics(e))?;
+
         let rx_alt_m = rx_alt_km * 1.0E3;
         let rx_rad = (rx_lat_deg.to_radians(), rx_long_deg.to_radians());
-
-        let rx_pos_vel = rx_orbit.to_cartesian_pos_vel() * 1.0E3;
-        let (x0, y0, z0) = (rx_pos_vel[0], rx_pos_vel[1], rx_pos_vel[2]);
 
         // apply eclipse filter (if need be)
         if let Some(min_rate) = self.cfg.min_sv_sunlight_rate {
